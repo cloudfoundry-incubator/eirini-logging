@@ -47,14 +47,30 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 		return admission.ErrorResponse(http.StatusBadRequest, errors.Wrap(err, "Failed Creating RBAC Client"))
 	}
 
+	roleBindingName := "role-binding-" + pod.Name
+	roleName := "role-" + pod.Name
+
 	_, err = rbacClient.Roles(ext.Namespace).Create(&rbacapi.Role{
 		TypeMeta:   metav1.TypeMeta{Kind: "Role", APIVersion: "rbac.authorization.k8s.io/v1"},
-		ObjectMeta: metav1.ObjectMeta{Namespace: ext.Namespace, Name: "role-" + pod.Name},
+		ObjectMeta: metav1.ObjectMeta{Namespace: ext.Namespace, Name: roleName},
 		Rules: []rbacapi.PolicyRule{
 			{
 				ResourceNames: []string{pod.Name},
 				Verbs:         []string{"get"},
 				Resources:     []string{"pods", "pods/log"},
+				APIGroups:     []string{""},
+			},
+
+			{
+				ResourceNames: []string{roleName},
+				Verbs:         []string{"delete"},
+				Resources:     []string{"role"},
+				APIGroups:     []string{""},
+			},
+			{
+				ResourceNames: []string{roleBindingName},
+				Verbs:         []string{"delete"},
+				Resources:     []string{"rolebinding"},
 				APIGroups:     []string{""},
 			},
 		}})
@@ -64,11 +80,11 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 
 	_, err = rbacClient.RoleBindings(ext.Namespace).Create(&rbacapi.RoleBinding{
 		TypeMeta:   metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"},
-		ObjectMeta: metav1.ObjectMeta{Namespace: ext.Namespace, Name: "role-binding-" + pod.Name},
+		ObjectMeta: metav1.ObjectMeta{Namespace: ext.Namespace, Name: roleBindingName},
 		Subjects:   []rbacapi.Subject{{Kind: "ServiceAccount", Name: "default", Namespace: ext.Namespace}},
 		RoleRef: rbacapi.RoleRef{
 			Kind:     "Role",
-			Name:     "role-" + pod.Name,
+			Name:     roleName,
 			APIGroup: "rbac.authorization.k8s.io",
 		}})
 	if err != nil {
@@ -85,13 +101,15 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 		VolumeMounts: podCopy.Spec.Containers[0].VolumeMounts, // Volumes are mounted for kubeAPI access from the sidecar container
 	}
 
-	// TODO: We need to add specific permission rules to be able to do this below
+	// FIXME:Find a better way to do this
+	// If the hook fails for any reason the pod gets removed and we keep the role bindings behind
+	// We could use e.g. finalizers, preStart hooks that sets the ownership of the pod once it is created
 	sidecar.Lifecycle = &v1.Lifecycle{
 		PreStop: &v1.Handler{
 			Exec: &v1.ExecAction{
-				Command: []string{"/bin/bash",
+				Command: []string{"/bin/sh",
 					"-c",
-					"kubectl delete role " + "role-" + pod.Name + " -n " + ext.Namespace + " && " + "kubectl delete rolebinding " + "role-binding-" + pod.Name + " -n " + ext.Namespace,
+					"kubectl delete role " + roleName + " -n " + ext.Namespace + " && " + "kubectl delete rolebinding " + roleBindingName + " -n " + ext.Namespace,
 				},
 			},
 		}}
