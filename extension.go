@@ -104,6 +104,15 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 	// FIXME:Find a better way to do this
 	// If the hook fails for any reason the pod gets removed and we keep the role bindings behind
 	// We could use e.g. finalizers, preStart hooks that sets the ownership of the pod once it is created
+
+	// Another way to fix it is to create a postStart hook that sets up a parent relation dependency for garbage collection, see:
+	// https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/
+	// https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/
+	// https://kubernetes.io/docs/tasks/run-application/update-api-object-kubectl-patch/
+	// https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
+
+	// If this way proves to work, its better as we don't have to care if the preStop fails (and of the garbage left behind)
+
 	sidecar.Lifecycle = &v1.Lifecycle{
 		PreStop: &v1.Handler{
 			Exec: &v1.ExecAction{
