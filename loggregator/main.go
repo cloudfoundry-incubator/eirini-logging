@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"code.cloudfoundry.org/go-loggregator"
 	"k8s.io/client-go/kubernetes"
@@ -28,26 +29,26 @@ func (l *LoggregatorWriter) Write(b []byte) (int, error) {
 		os.Getenv("KEY_PATH"),
 	)
 	if err != nil {
-		return 0,err
+		return 0, err
 	}
 
 	loggregatorClient, err := loggregator.NewIngressClient(
 		tlsConfig,
+		// Temporary make flushing more frequent to be able to debug
+		loggregator.WithBatchFlushInterval(3*time.Second),
 		loggregator.WithAddr(os.Getenv("LOGGREGATOR_AGENT")),
 	)
 
 	if err != nil {
-		return 0,err
+		return 0, err
 	}
 
-
-
-	log.Println("POD OUTPUT: "+ string(b))
+	log.Println("POD OUTPUT: " + string(b))
 	loggregatorClient.EmitLog(string(b),
 		loggregator.WithSourceInfo(l.SourceID, l.Platform, l.SourceInstance),
 	)
-	
-	return len(b), l.LoggregatorClient.CloseSend()
+
+	return len(b), nil
 }
 
 func NewLoggregatorWriter(kubeClient *kubernetes.Clientset) *LoggregatorWriter {
@@ -67,10 +68,10 @@ func NewLoggregatorWriter(kubeClient *kubernetes.Clientset) *LoggregatorWriter {
 	}
 
 	return &LoggregatorWriter{
-		SourceID:          sourceID,
-		Platform:          platformID,
-		SourceInstance:    sourceInstance,
-		KubeClient:        kubeClient,
+		SourceID:       sourceID,
+		Platform:       platformID,
+		SourceInstance: sourceInstance,
+		KubeClient:     kubeClient,
 	}
 }
 
@@ -121,8 +122,6 @@ func main() {
 	if err != nil {
 		return
 	}
-
-
 
 	writer := NewLoggregatorWriter(kubeClient)
 	err = writer.AttachToPodLogs(os.Getenv("NAMESPACE"), os.Getenv("POD"), os.Getenv("CONTAINER"))
