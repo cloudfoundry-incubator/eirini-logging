@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"os"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,6 +51,11 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 	roleBindingName := "role-binding-" + pod.Name
 	roleName := "role-" + pod.Name
 
+	sidecarImage := os.Getenv("DOCKER_SIDECAR_IMAGE")
+	if sidecarImage == "" {
+		sidecarImage = "splatform/eirini-logging-sidecar"
+	}
+
 	_, err = rbacClient.Roles(ext.Namespace).Create(&rbacapi.Role{
 		TypeMeta:   metav1.TypeMeta{Kind: "Role", APIVersion: "rbac.authorization.k8s.io/v1"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: ext.Namespace, Name: roleName},
@@ -96,7 +102,7 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 	// FIXME: we assume that the first container is the eirini app
 	sidecar := corev1.Container{
 		Name:         "eirini-logging",
-		Image:        "jimmykarily/eirini-logging-sidecar",
+		Image:        sidecarImage,
 		Args:         []string{"logs", "-f", pod.Name, "-n", ext.Namespace, "-c", podCopy.Spec.Containers[0].Name},
 		VolumeMounts: podCopy.Spec.Containers[0].VolumeMounts, // Volumes are mounted for kubeAPI access from the sidecar container
 	}
