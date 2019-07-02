@@ -22,14 +22,35 @@ type LoggregatorWriter struct {
 
 func (l *LoggregatorWriter) Write(b []byte) (int, error) {
 
-	l.LoggregatorClient.EmitLog(string(b),
-		loggregator.WithSourceInfo(l.SourceID, l.Platform, l.SourceInstance),
+	tlsConfig, err := loggregator.NewIngressTLSConfig(
+		os.Getenv("CA_CERT_PATH"),
+		os.Getenv("CERT_PATH"),
+		os.Getenv("KEY_PATH"),
+	)
+	if err != nil {
+		return 0,err
+	}
+
+	loggregatorClient, err := loggregator.NewIngressClient(
+		tlsConfig,
+		loggregator.WithAddr(os.Getenv("LOGGREGATOR_AGENT")),
 	)
 
-	return len(b), nil
+	if err != nil {
+		return 0,err
+	}
+
+
+
+	log.Println("POD OUTPUT: "+ string(b))
+	loggregatorClient.EmitLog(string(b),
+		loggregator.WithSourceInfo(l.SourceID, l.Platform, l.SourceInstance),
+	)
+	
+	return len(b), l.LoggregatorClient.CloseSend()
 }
 
-func NewLoggregatorWriter(kubeClient *kubernetes.Clientset, loggregatorClient *loggregator.IngressClient) *LoggregatorWriter {
+func NewLoggregatorWriter(kubeClient *kubernetes.Clientset) *LoggregatorWriter {
 
 	sourceID := os.Getenv("SOURCE_ID")
 	if sourceID == "" {
@@ -50,7 +71,6 @@ func NewLoggregatorWriter(kubeClient *kubernetes.Clientset, loggregatorClient *l
 		Platform:          platformID,
 		SourceInstance:    sourceInstance,
 		KubeClient:        kubeClient,
-		LoggregatorClient: loggregatorClient,
 	}
 }
 
@@ -102,26 +122,14 @@ func main() {
 		return
 	}
 
-	tlsConfig, err := loggregator.NewIngressTLSConfig(
-		os.Getenv("CA_CERT_PATH"),
-		os.Getenv("CERT_PATH"),
-		os.Getenv("KEY_PATH"),
-	)
-	if err != nil {
-		log.Fatal("Could not create TLS config", err)
-	}
 
-	loggregatorClient, err := loggregator.NewIngressClient(
-		tlsConfig,
-		loggregator.WithAddr(os.Getenv("LOGGREGATOR_AGENT")),
-	)
+
+	writer := NewLoggregatorWriter(kubeClient)
+	err = writer.AttachToPodLogs(os.Getenv("NAMESPACE"), os.Getenv("POD"), os.Getenv("CONTAINER"))
 
 	if err != nil {
-		log.Fatal("Could not create client", err)
+		log.Fatalf(err.Error())
 	}
-
-	writer := NewLoggregatorWriter(kubeClient, loggregatorClient)
-	writer.AttachToPodLogs(os.Getenv("NAMESPACE"), os.Getenv("POD"), os.Getenv("CONTAINER"))
 
 	//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	//defer cancel()
@@ -140,5 +148,4 @@ func main() {
 	// 	client.EmitTimer("loop_times", startTime, time.Now())
 	// }
 
-	loggregatorClient.CloseSend()
 }
