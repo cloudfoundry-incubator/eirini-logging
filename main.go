@@ -11,15 +11,15 @@ import (
 
 func startExtension() {
 	var port int32
-	ns := os.Getenv("NAMESPACE")
+	ns := os.Getenv("EIRINI_EXTENSION_NAMESPACE")
 	if len(ns) == 0 {
 		ns = "default"
 	}
-	host := os.Getenv("HOST")
+	host := os.Getenv("EIRINI_EXTENSION_HOST")
 	if len(host) == 0 {
 		host = "10.0.2.2"
 	}
-	p := os.Getenv("PORT")
+	p := os.Getenv("EIRINI_EXTENSION_PORT")
 	if len(p) == 0 {
 		port = 3000
 	} else {

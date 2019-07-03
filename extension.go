@@ -53,7 +53,7 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 
 	sidecarImage := os.Getenv("DOCKER_SIDECAR_IMAGE")
 	if sidecarImage == "" {
-		sidecarImage = "splatform/eirini-logging-sidecar"
+		sidecarImage = "splatform/eirini-logging"
 	}
 
 	_, err = rbacClient.Roles(ext.Namespace).Create(&rbacapi.Role{
@@ -100,13 +100,13 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 	podCopy := pod.DeepCopy()
 
 	secretsVolumeMount := v1.VolumeMount{
-		Name:      os.Getenv("DOPPLER_SECRET"),
+		Name:      "doppler-secrets",
 		ReadOnly:  true,
 		MountPath: "/secrets",
 	}
 
 	secretsVolume := v1.Volume{
-		Name: os.Getenv("DOPPLER_SECRET"),
+		Name: "doppler-secrets",
 		VolumeSource: v1.VolumeSource{
 			Secret: &v1.SecretVolumeSource{
 				SecretName: os.Getenv("DOPPLER_SECRET"),
@@ -126,7 +126,7 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 	sidecar := corev1.Container{
 		Name:  "eirini-logging",
 		Image: sidecarImage,
-		//Args:         []string{"logs", "-f", pod.Name, "-n", ext.Namespace, "-c", podCopy.Spec.Containers[0].Name},
+		Args:  []string{"loggregator"},
 		Env: []corev1.EnvVar{
 			{
 				Name:  "NAMESPACE",
@@ -154,7 +154,7 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 			},
 			{
 				Name:  "LOGGREGATOR_ENDPOINT",
-				Value: os.Getenv("DOPPLER_DOPPLER_PORT"),
+				Value: os.Getenv("LOGGERGATOR_ENDPOINT"),
 			},
 		},
 		// Volumes are mounted for kubeAPI access from the sidecar container
@@ -173,6 +173,8 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 
 	// If this way proves to work, its better as we don't have to care if the preStop fails (and of the garbage left behind)
 
+	// FIXME: If we fail to create the pod, the roles stay behind and the next time it will complain that the role already exists
+	// FIXME: We don't have kubectl in the sidecar
 	sidecar.Lifecycle = &v1.Lifecycle{
 		PreStop: &v1.Handler{
 			Exec: &v1.ExecAction{

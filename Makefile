@@ -5,9 +5,11 @@ all: test build image
 build:
 	bin/build
 
-.PHONY: image
-image:
+build-image:
 	bin/build-image
+
+.PHONY: image
+image: build build-image
 
 vet:
 	bin/vet

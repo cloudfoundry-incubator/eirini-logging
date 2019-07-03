@@ -1,7 +1,3 @@
-FROM golang
-WORKDIR /tmp/eirini-logging
-ADD . /tmp/eirini-logging
-RUN cd /tmp/eirini-logging && \
-    go build -o /bin/eirini-logging && \
-		rm -rf /tmp/eirini-logging
+FROM opensuse:leap
+ADD binaries/eirini-logging /bin/eirini-logging
 ENTRYPOINT ["/bin/eirini-logging"]
