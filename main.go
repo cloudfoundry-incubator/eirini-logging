@@ -5,10 +5,11 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/SUSE/eirini-logging/loggregator"
 	eirinix "github.com/SUSE/eirinix"
 )
 
-func main() {
+func startExtension() {
 	var port int32
 	ns := os.Getenv("NAMESPACE")
 	if len(ns) == 0 {
@@ -28,7 +29,9 @@ func main() {
 		}
 		port = int32(po)
 	}
+
 	fmt.Println("Listening on ", host, port)
+
 	x := eirinix.NewManager(
 		eirinix.ManagerOptions{
 			Namespace:           ns,
@@ -41,4 +44,24 @@ func main() {
 
 	x.AddExtension(&Extension{Namespace: ns})
 	fmt.Println(x.Start())
+}
+
+func startLoggregator() {
+	fmt.Println(loggregator.NewLoggregator().Run())
+}
+
+func main() {
+	if len(os.Args) <= 1 {
+		fmt.Println("Please specify a subcommand (either 'extension' or 'loggregator')")
+		return
+	}
+
+	switch os.Args[1] {
+	case "extension":
+		startExtension()
+	case "loggregator":
+		startLoggregator()
+	default:
+		fmt.Println("Subcommand has to be either 'extension' or 'loggregator'")
+	}
 }

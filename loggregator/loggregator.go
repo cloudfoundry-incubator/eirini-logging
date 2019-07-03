@@ -1,4 +1,4 @@
-package main
+package loggregator
 
 import (
 	"errors"
@@ -13,6 +13,13 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+type Loggregator struct {
+}
+
+func NewLoggregator() *Loggregator {
+	return &Loggregator{}
+}
 
 type LoggregatorWriter struct {
 	SourceID, Platform, SourceInstance string
@@ -100,34 +107,32 @@ func (l *LoggregatorWriter) AttachToPodLogs(namespace, pod, container string) er
 	return errors.New("Something went wrong")
 }
 
-func main() {
-
+func (l *Loggregator) Run() error {
 	kubeConfig := os.Getenv("KUBECONFIG")
 	var restConfig *rest.Config
 	var err error
 	if kubeConfig == "" {
 		restConfig, err = rest.InClusterConfig()
 		if err != nil {
-			return
+			return err
 		}
 
 	} else {
 		restConfig, err = clientcmd.BuildConfigFromFlags("", kubeConfig)
 		if err != nil {
-			return
+			return err
 		}
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		return
+		return err
 	}
 
 	writer := NewLoggregatorWriter(kubeClient)
 	err = writer.AttachToPodLogs(os.Getenv("NAMESPACE"), os.Getenv("POD"), os.Getenv("CONTAINER"))
-
 	if err != nil {
-		log.Fatalf(err.Error())
+		return err
 	}
 
 	//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -147,4 +152,5 @@ func main() {
 	// 	client.EmitTimer("loop_times", startTime, time.Now())
 	// }
 
+	return nil
 }
