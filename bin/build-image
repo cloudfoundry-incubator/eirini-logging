@@ -7,6 +7,6 @@ GIT_ROOT=${GIT_ROOT:-$(git rev-parse --show-toplevel)}
 
 BASEDIR="$(cd "$(dirname "$0")/.." && pwd)"
 DOCKER_ORG="${DOCKER_ORG:-}"
-DOCKER_IMAGE="${DOCKER_IMAGE:-${DOCKER_ORG}eirini-logging-sidecar:latest}"
+DOCKER_IMAGE="${DOCKER_IMAGE:-${DOCKER_ORG}/eirini-logging:latest}"
 
-docker build --rm --no-cache -t "${DOCKER_IMAGE}" ${BASEDIR}/loggregator
+docker build --rm --no-cache -t "${DOCKER_IMAGE}" ${BASEDIR}
