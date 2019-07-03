@@ -31,9 +31,9 @@ type LoggregatorWriter struct {
 func (l *LoggregatorWriter) Write(b []byte) (int, error) {
 
 	tlsConfig, err := loggregator.NewIngressTLSConfig(
-		os.Getenv("CA_CERT_PATH"),
-		os.Getenv("CERT_PATH"),
-		os.Getenv("KEY_PATH"),
+		os.Getenv("LOGGREGATOR_CA_PATH"),
+		os.Getenv("LOGGREGATOR_CERT_PATH"),
+		os.Getenv("LOGGREGATOR_CERT_KEY_PATH"),
 	)
 	if err != nil {
 		return 0, err
@@ -43,7 +43,7 @@ func (l *LoggregatorWriter) Write(b []byte) (int, error) {
 		tlsConfig,
 		// Temporary make flushing more frequent to be able to debug
 		loggregator.WithBatchFlushInterval(3*time.Second),
-		loggregator.WithAddr(os.Getenv("LOGGREGATOR_AGENT")),
+		loggregator.WithAddr(os.Getenv("LOGGREGATOR_ENDPOINT")),
 	)
 
 	if err != nil {

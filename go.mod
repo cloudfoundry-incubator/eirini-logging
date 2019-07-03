@@ -10,7 +10,9 @@ require (
 	github.com/golang/protobuf v1.3.1 // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
+	github.com/nsf/gocode v0.0.0-20190302080247-5bee97b48836 // indirect
 	github.com/pkg/errors v0.8.1
+	github.com/zmb3/gogetdoc v0.0.0-20190228002656-b37376c5da6a // indirect
 	golang.org/x/crypto v0.0.0-20190618222545-ea8f1a30c443 // indirect
 	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect

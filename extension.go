@@ -99,12 +99,66 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 
 	podCopy := pod.DeepCopy()
 
+	secretsVolumeMount := v1.VolumeMount{
+		Name:      os.Getenv("DOPPLER_SECRET"),
+		ReadOnly:  true,
+		MountPath: "/secrets",
+	}
+
+	secretsVolume := v1.Volume{
+		Name: os.Getenv("DOPPLER_SECRET"),
+		VolumeSource: v1.VolumeSource{
+			Secret: &v1.SecretVolumeSource{
+				SecretName: os.Getenv("DOPPLER_SECRET"),
+				Items: []v1.KeyToPath{
+					{Key: "internal-ca-cert", Path: "internal-ca-cert"},
+					{Key: "loggregator-forward-cert", Path: "loggregator-forward-cert"},
+					{Key: "loggregator-forward-cert-key", Path: "loggregator-forward-cert-key"},
+				},
+			},
+		},
+	}
+
+	podCopy.Spec.Volumes = append(podCopy.Spec.Volumes, secretsVolume)
+
 	// FIXME: we assume that the first container is the eirini app
+	// FIXME: Don't hardcode scf specific values below
 	sidecar := corev1.Container{
-		Name:         "eirini-logging",
-		Image:        sidecarImage,
-		Args:         []string{"logs", "-f", pod.Name, "-n", ext.Namespace, "-c", podCopy.Spec.Containers[0].Name},
-		VolumeMounts: podCopy.Spec.Containers[0].VolumeMounts, // Volumes are mounted for kubeAPI access from the sidecar container
+		Name:  "eirini-logging",
+		Image: sidecarImage,
+		//Args:         []string{"logs", "-f", pod.Name, "-n", ext.Namespace, "-c", podCopy.Spec.Containers[0].Name},
+		Env: []corev1.EnvVar{
+			{
+				Name:  "NAMESPACE",
+				Value: pod.Namespace,
+			},
+			{
+				Name:  "POD",
+				Value: pod.Name,
+			},
+			{
+				Name:  "CONTAINER",
+				Value: pod.Spec.Containers[0].Name,
+			},
+			{
+				Name:  "LOGGREGATOR_CA_PATH",
+				Value: "/secrets/internal-ca-cert",
+			},
+			{
+				Name:  "LOGGREGATOR_CERT_PATH",
+				Value: "/secrets/loggregator-forward-cert",
+			},
+			{
+				Name:  "LOGGREGATOR_CERT_KEY_PATH",
+				Value: "/secrets/loggregator-forward-cert-key",
+			},
+			{
+				Name:  "LOGGREGATOR_ENDPOINT",
+				Value: os.Getenv("DOPPLER_DOPPLER_PORT"),
+			},
+		},
+		// Volumes are mounted for kubeAPI access from the sidecar container
+		VolumeMounts: append(podCopy.Spec.Containers[0].VolumeMounts, secretsVolumeMount),
 	}
 
 	// FIXME:Find a better way to do this
