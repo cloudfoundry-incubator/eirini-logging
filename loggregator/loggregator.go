@@ -9,27 +9,53 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type Loggregator struct {
+type LoggregatorMeta struct {
+	SourceID, InstanceID                               string
+	SourceType, PodName, Namespace, Container, Cluster string // Custom tags
 }
 
-func NewLoggregator() *Loggregator {
-	return &Loggregator{}
+type Loggregator struct {
+	Meta   *LoggregatorMeta
+	Writer *LoggregatorWriter
 }
 
 type LoggregatorWriter struct {
-	SourceID, Platform, SourceInstance string
-
+	Meta              *LoggregatorMeta
 	KubeClient        *kubernetes.Clientset
 	LoggregatorClient *loggregator.IngressClient
 }
 
-func (l *LoggregatorWriter) Write(b []byte) (int, error) {
+func NewLoggregator(m *LoggregatorMeta) *Loggregator {
+	return &Loggregator{Meta: m}
+}
 
+func (lw *LoggregatorWriter) Envelope(message []byte) *loggregator_v2.Envelope {
+	return &loggregator_v2.Envelope{
+		Message: &loggregator_v2.Envelope_Log{
+			Log: &loggregator_v2.Log{
+				Payload: message,
+				Type:    loggregator_v2.Log_OUT,
+			},
+		},
+		SourceId:   lw.Meta.SourceID,
+		InstanceId: lw.Meta.InstanceID,
+		Tags: map[string]string{
+			"source_type": lw.Meta.SourceType,
+			"pod_name":    lw.Meta.PodName,
+			"namespace":   lw.Meta.Namespace,
+			"container":   lw.Meta.Container,
+			"cluster":     lw.Meta.Cluster, // ??
+		},
+	}
+}
+
+func (lw *LoggregatorWriter) Write(b []byte) (int, error) {
 	tlsConfig, err := loggregator.NewIngressTLSConfig(
 		os.Getenv("LOGGREGATOR_CA_PATH"),
 		os.Getenv("LOGGREGATOR_CERT_PATH"),
@@ -51,40 +77,21 @@ func (l *LoggregatorWriter) Write(b []byte) (int, error) {
 	}
 
 	log.Println("POD OUTPUT: " + string(b))
-	loggregatorClient.EmitLog(string(b),
-		loggregator.WithSourceInfo(l.SourceID, l.Platform, l.SourceInstance),
-	)
+
+	loggregatorClient.Emit(lw.Envelope(b))
 
 	return len(b), nil
 }
 
-func NewLoggregatorWriter(kubeClient *kubernetes.Clientset) *LoggregatorWriter {
-
-	sourceID := os.Getenv("SOURCE_ID")
-	if sourceID == "" {
-		sourceID = "v2-example-source-id"
-	}
-
-	platformID := os.Getenv("PLATFORM_ID")
-	if platformID == "" {
-		platformID = "platform"
-	}
-	sourceInstance := os.Getenv("SOURCE_INSTANCE")
-	if sourceInstance == "" {
-		sourceInstance = "v2-example-source-instance"
-	}
-
+func NewLoggregatorWriter(kubeClient *kubernetes.Clientset, meta *LoggregatorMeta) *LoggregatorWriter {
 	return &LoggregatorWriter{
-		SourceID:       sourceID,
-		Platform:       platformID,
-		SourceInstance: sourceInstance,
-		KubeClient:     kubeClient,
+		Meta:       meta,
+		KubeClient: kubeClient,
 	}
 }
 
-func (l *LoggregatorWriter) AttachToPodLogs(namespace, pod, container string) error {
-
-	req := l.KubeClient.CoreV1().RESTClient().Get().
+func (l *Loggregator) AttachToPodLogs(namespace, pod, container string) error {
+	req := l.Writer.KubeClient.CoreV1().RESTClient().Get().
 		Namespace(namespace).
 		Name(pod).
 		Resource("pods").
@@ -99,7 +106,7 @@ func (l *LoggregatorWriter) AttachToPodLogs(namespace, pod, container string) er
 	}
 
 	defer readCloser.Close()
-	_, err = io.Copy(l, readCloser)
+	_, err = io.Copy(l.Writer, readCloser)
 	if err != nil {
 		return err
 	}
@@ -129,8 +136,12 @@ func (l *Loggregator) Run() error {
 		return err
 	}
 
-	writer := NewLoggregatorWriter(kubeClient)
-	err = writer.AttachToPodLogs(os.Getenv("NAMESPACE"), os.Getenv("POD"), os.Getenv("CONTAINER"))
+	l.Writer = NewLoggregatorWriter(kubeClient, l.Meta)
+	err = l.AttachToPodLogs(
+		os.Getenv("EIRINI_LOGGREGATOR_NAMESPACE"),
+		os.Getenv("EIRINI_LOGGREGATOR_POD_NAME"),
+		os.Getenv("EIRINI_LOGGREGATOR_CONTAINER"),
+	)
 	if err != nil {
 		return err
 	}

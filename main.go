@@ -47,7 +47,16 @@ func startExtension() {
 }
 
 func startLoggregator() {
-	fmt.Println(loggregator.NewLoggregator().Run())
+	meta := &loggregator.LoggregatorMeta{
+		SourceID:   os.Getenv("EIRINI_LOGGREGATOR_SOURCE_ID"),
+		InstanceID: os.Getenv("EIRINI_LOGGREGATOR_POD_NAME"),
+		SourceType: os.Getenv("EIRINI_LOGGREGATOR_SOURCE_TYPE"),
+		PodName:    os.Getenv("EIRINI_LOGGREGATOR_POD_NAME"),
+		Namespace:  os.Getenv("EIRINI_LOGGREGATOR_NAMESPACE"),
+		Container:  os.Getenv("EIRINI_LOGGREGATOR_CONTAINER"),
+		Cluster:    os.Getenv("EIRINI_LOGGREGATOR_CLUSTER"),
+	}
+	fmt.Println(loggregator.NewLoggregator(meta).Run())
 }
 
 func main() {

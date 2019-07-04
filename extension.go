@@ -83,6 +83,8 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 		return admission.ErrorResponse(http.StatusBadRequest, errors.Wrap(err, "Failed Creating RBAC Role "))
 	}
 
+	// TODO: Don't use the "default" service account here but require a service account from the operator which
+	// will be used for the eirini applications to be able to talk to the kube api.
 	_, err = rbacClient.RoleBindings(ext.Namespace).Create(&rbacapi.RoleBinding{
 		TypeMeta:   metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: ext.Namespace, Name: roleBindingName},
@@ -120,6 +122,17 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 
 	podCopy.Spec.Volumes = append(podCopy.Spec.Volumes, secretsVolume)
 
+	// TODO: Don't hardcode the service account
+	podCopy.Spec.ServiceAccountName = "default"
+	autoMountServiceAccount := true
+	podCopy.Spec.AutomountServiceAccountToken = &autoMountServiceAccount
+
+	sourceType, ok := podCopy.GetLabels()["source_type"]
+	//  https://github.com/gdankov/loggregator-ci/blob/eirini/docker-images/fluentd/plugins/loggregator.rb#L46
+	if ok && sourceType == "APP" {
+		sourceType = "APP/PROC/WEB"
+	}
+
 	// FIXME: we assume that the first container is the eirini app
 	// FIXME: Don't hardcode scf specific values below
 	sidecar := v1.Container{
@@ -143,6 +156,32 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 			{
 				Name:  "LOGGREGATOR_ENDPOINT",
 				Value: os.Getenv("LOGGERGATOR_ENDPOINT"),
+			},
+			{
+				Name:  "EIRINI_LOGGREGATOR_SOURCE_ID",
+				Value: string(podCopy.GetUID()),
+			},
+			{
+				Name:  "EIRINI_LOGGREGATOR_SOURCE_TYPE",
+				Value: sourceType,
+			},
+			{
+				Name:  "EIRINI_LOGGREGATOR_POD_NAME",
+				Value: podCopy.GetName(),
+			},
+			{
+				Name:  "EIRINI_LOGGREGATOR_NAMESPACE",
+				Value: podCopy.Namespace,
+			},
+			{
+				Name:  "EIRINI_LOGGREGATOR_CONTAINER",
+				Value: podCopy.Spec.Containers[0].Name,
+			},
+			{
+				Name: "EIRINI_LOGGREGATOR_CLUSTER",
+				// TODO: Is this correct?
+				// https://github.com/gdankov/loggregator-ci/blob/eirini/docker-images/fluentd/plugins/loggregator.rb#L54
+				Value: podCopy.GetClusterName(),
 			},
 		},
 		// Volumes are mounted for kubeAPI access from the sidecar container
