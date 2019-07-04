@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	eirinix "github.com/SUSE/eirinix"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacapi "k8s.io/api/rbac/v1"
 	rbac "k8s.io/client-go/kubernetes/typed/rbac/v1"
@@ -32,7 +31,7 @@ func getVolume(name, path string) (v1.Volume, v1.VolumeMount) {
 	return vol, mount
 }
 
-func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager, pod *corev1.Pod, req types.Request) types.Response {
+func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager, pod *v1.Pod, req types.Request) types.Response {
 
 	if pod == nil {
 		return admission.ErrorResponse(http.StatusBadRequest, errors.New("No pod could be decoded from the request"))
@@ -123,23 +122,12 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 
 	// FIXME: we assume that the first container is the eirini app
 	// FIXME: Don't hardcode scf specific values below
-	sidecar := corev1.Container{
-		Name:  "eirini-logging",
-		Image: sidecarImage,
-		Args:  []string{"loggregator"},
-		Env: []corev1.EnvVar{
-			{
-				Name:  "NAMESPACE",
-				Value: pod.Namespace,
-			},
-			{
-				Name:  "POD",
-				Value: pod.Name,
-			},
-			{
-				Name:  "CONTAINER",
-				Value: pod.Spec.Containers[0].Name,
-			},
+	sidecar := v1.Container{
+		Name:            "eirini-logging",
+		Image:           sidecarImage,
+		Args:            []string{"loggregator"},
+		ImagePullPolicy: v1.PullAlways,
+		Env: []v1.EnvVar{
 			{
 				Name:  "LOGGREGATOR_CA_PATH",
 				Value: "/secrets/internal-ca-cert",
