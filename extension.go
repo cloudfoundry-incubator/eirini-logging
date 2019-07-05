@@ -11,6 +11,7 @@ import (
 	eirinix "github.com/SUSE/eirinix"
 	v1 "k8s.io/api/core/v1"
 	rbacapi "k8s.io/api/rbac/v1"
+	"k8s.io/client-go/kubernetes"
 	rbac "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission/types"
@@ -55,6 +56,8 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 		sidecarImage = "splatform/eirini-logging"
 	}
 
+	// TODO: Do we need to also create a new service account for each application?
+	// If not, any sidecar will be able to read logs from any application
 	_, err = rbacClient.Roles(ext.Namespace).Create(&rbacapi.Role{
 		TypeMeta:   metav1.TypeMeta{Kind: "Role", APIVersion: "rbac.authorization.k8s.io/v1"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: ext.Namespace, Name: roleName},
@@ -100,6 +103,30 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 
 	podCopy := pod.DeepCopy()
 
+	// TODO: Remove these
+	//podCopy.Spec.ServiceAccountName = "default"
+	//autoMountServiceAccount := true
+	//podCopy.Spec.AutomountServiceAccountToken = &autoMountServiceAccount
+
+	// Mount the serviceaccount token in the container
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return admission.ErrorResponse(http.StatusBadRequest, errors.Wrap(err, "Failed to create a kube client"))
+	}
+	serviceAccountHelper := NewServiceAccountMountHelper(kubeClient)
+	// TODO: Don't hardcode the "default" service account here, get it from env or something
+	serviceAccountVolume, err := serviceAccountHelper.VolumeForServiceAccount("default", podCopy.GetNamespace())
+	if err != nil {
+		return admission.ErrorResponse(http.StatusBadRequest, errors.Wrap(err, "Failed to create the serviceaccount token volume"))
+	}
+
+	// https://kubernetes.io/docs/tasks/administer-cluster/access-cluster-api/#accessing-the-api-from-a-pod
+	serviceAccountVolumeMount := v1.VolumeMount{
+		Name:      "serviceaccounttoken",
+		ReadOnly:  true,
+		MountPath: "/var/run/secrets/kubernetes.io/serviceaccount",
+	}
+
 	secretsVolumeMount := v1.VolumeMount{
 		Name:      "doppler-secrets",
 		ReadOnly:  true,
@@ -120,12 +147,7 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 		},
 	}
 
-	podCopy.Spec.Volumes = append(podCopy.Spec.Volumes, secretsVolume)
-
-	// TODO: Don't hardcode the service account
-	podCopy.Spec.ServiceAccountName = "default"
-	autoMountServiceAccount := true
-	podCopy.Spec.AutomountServiceAccountToken = &autoMountServiceAccount
+	podCopy.Spec.Volumes = append(podCopy.Spec.Volumes, secretsVolume, serviceAccountVolume)
 
 	sourceType, ok := podCopy.GetLabels()["source_type"]
 	//  https://github.com/gdankov/loggregator-ci/blob/eirini/docker-images/fluentd/plugins/loggregator.rb#L46
@@ -185,7 +207,7 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 			},
 		},
 		// Volumes are mounted for kubeAPI access from the sidecar container
-		VolumeMounts: append(podCopy.Spec.Containers[0].VolumeMounts, secretsVolumeMount),
+		VolumeMounts: []v1.VolumeMount{secretsVolumeMount, serviceAccountVolumeMount},
 	}
 
 	// FIXME:Find a better way to do this
