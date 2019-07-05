@@ -21,7 +21,3 @@ spec:
        done
      name: eirini-fake-app
   restartPolicy: Always
-volumes:
-  - name: "workdir"
-    hostpath:
-      path:   "/code"
