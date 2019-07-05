@@ -52,6 +52,7 @@ func (lw *LoggregatorWriter) Envelope(message []byte) *loggregator_v2.Envelope {
 			"container":   lw.Meta.Container,
 			"cluster":     lw.Meta.Cluster, // ??
 		},
+		Timestamp: time.Now().Unix() * 1000000000,
 	}
 }
 

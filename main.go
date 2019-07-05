@@ -49,7 +49,7 @@ func startExtension() {
 func startLoggregator() {
 	meta := &loggregator.LoggregatorMeta{
 		SourceID:   os.Getenv("EIRINI_LOGGREGATOR_SOURCE_ID"),
-		InstanceID: os.Getenv("EIRINI_LOGGREGATOR_POD_NAME"),
+		InstanceID: "0", // Handle multiple instance like this: https://github.com/gdankov/loggregator-ci/blob/eirini/docker-images/fluentd/plugins/loggregator.rb#L86
 		SourceType: os.Getenv("EIRINI_LOGGREGATOR_SOURCE_TYPE"),
 		PodName:    os.Getenv("EIRINI_LOGGREGATOR_POD_NAME"),
 		Namespace:  os.Getenv("EIRINI_LOGGREGATOR_NAMESPACE"),

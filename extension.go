@@ -177,11 +177,11 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 			},
 			{
 				Name:  "LOGGREGATOR_ENDPOINT",
-				Value: os.Getenv("LOGGERGATOR_ENDPOINT"),
+				Value: os.Getenv("LOGGREGATOR_ENDPOINT"),
 			},
 			{
 				Name:  "EIRINI_LOGGREGATOR_SOURCE_ID",
-				Value: string(podCopy.GetUID()),
+				Value: podCopy.GetLabels()["guid"], // TODO: Handle the case when this is empty
 			},
 			{
 				Name:  "EIRINI_LOGGREGATOR_SOURCE_TYPE",
