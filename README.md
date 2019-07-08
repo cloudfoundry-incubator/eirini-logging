@@ -47,6 +47,10 @@ NOTE: For now staging logs do not work because staging happens partly inside Ini
 
 If you don't have an scf cluster with Eirini but want to debug the extension, you can create a pod that acts as a fake Eirini application. You can find an example of a "fake" Eirini app here: [eirini-fake-app](contrib/kube/eirini_app.yaml). Since you don't have scf runningyou don't have a Doppler endpoint either so there is nowhere to send the logs. You can still debug the extension using `kubectl exec` on the extension pod so it might be useful during development.
 
+## Cleanup
+
+Currently in some cases when pods don't start or stop succesfully, there might be leftovers (Role, Rolebindings etc) in the Eirini namespace. You might have to delete those manually until this is fixed.
+
 ## Useful links
 
 - [Eirinix library](https://github.com/SUSE/eirinix)
