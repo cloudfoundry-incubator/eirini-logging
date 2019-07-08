@@ -32,13 +32,14 @@ func startExtension() {
 
 	fmt.Println("Listening on ", host, port)
 
+	filterEiriniApps := false
 	x := eirinix.NewManager(
 		eirinix.ManagerOptions{
 			Namespace:           ns,
 			Host:                host,
 			Port:                port,
 			KubeConfig:          os.Getenv("KUBECONFIG"),
-			FilterEiriniApps:    false,
+			FilterEiriniApps:    &filterEiriniApps,
 			OperatorFingerprint: "eirini-app-logging",
 		})
 

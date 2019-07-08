@@ -16,6 +16,8 @@ github.com/SUSE/eirini-logging/loggregator v0.0.0-20190702095419-8cbd391506e1 h1
 github.com/SUSE/eirini-logging/loggregator v0.0.0-20190702095419-8cbd391506e1/go.mod h1:QpHVJE4KvjXO8U85DWacGe29ejhQTkJVKDv2AoxKzR0=
 github.com/SUSE/eirinix v0.0.0-20190607094228-9d6bc2a521da h1:8uhSjdyAhEaBGdcecHamXOsCrv7ON8W6Ur41d6pnAL4=
 github.com/SUSE/eirinix v0.0.0-20190607094228-9d6bc2a521da/go.mod h1:vjdLlXvYtKnCgLLHUIB4Wbff7FwQmk+3OkVdPjqgNE4=
+github.com/SUSE/eirinix v0.0.0-20190708110605-bf2c1da6b036 h1:CIfCOFJknz2rBQfiT3cj1rMg0VEE7hhKnPmXt7Z6mWE=
+github.com/SUSE/eirinix v0.0.0-20190708110605-bf2c1da6b036/go.mod h1:vjdLlXvYtKnCgLLHUIB4Wbff7FwQmk+3OkVdPjqgNE4=
 github.com/appscode/jsonpatch v0.0.0-20190108182946-7c0e3b262f30 h1:Kn3rqvbUFqSepE2OqVu0Pn1CbDw9IuMlONapol0zuwk=
 github.com/appscode/jsonpatch v0.0.0-20190108182946-7c0e3b262f30/go.mod h1:4AJxUpXUhv4N+ziTvIcWWXgeorXpxPZOfk9HdEVr96M=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
