@@ -6,13 +6,10 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	eirinix "github.com/SUSE/eirinix"
 	v1 "k8s.io/api/core/v1"
-	rbacapi "k8s.io/api/rbac/v1"
 	"k8s.io/client-go/kubernetes"
-	rbac "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission/types"
 )
@@ -43,70 +40,15 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 		return admission.ErrorResponse(http.StatusBadRequest, errors.Wrap(err, "Failed getting the Kube connection"))
 	}
 
-	rbacClient, err := rbac.NewForConfig(config)
-	if err != nil {
-		return admission.ErrorResponse(http.StatusBadRequest, errors.Wrap(err, "Failed Creating RBAC Client"))
-	}
-
-	roleBindingName := "role-binding-" + pod.Name
-	roleName := "role-" + pod.Name
-
 	sidecarImage := os.Getenv("DOCKER_SIDECAR_IMAGE")
 	if sidecarImage == "" {
 		sidecarImage = "splatform/eirini-logging"
 	}
 
-	// TODO: Do we need to also create a new service account for each application?
-	// If not, any sidecar will be able to read logs from any application
-	_, err = rbacClient.Roles(ext.Namespace).Create(&rbacapi.Role{
-		TypeMeta:   metav1.TypeMeta{Kind: "Role", APIVersion: "rbac.authorization.k8s.io/v1"},
-		ObjectMeta: metav1.ObjectMeta{Namespace: ext.Namespace, Name: roleName},
-		Rules: []rbacapi.PolicyRule{
-			{
-				ResourceNames: []string{pod.Name},
-				Verbs:         []string{"get"},
-				Resources:     []string{"pods", "pods/log"},
-				APIGroups:     []string{""},
-			},
-
-			{
-				ResourceNames: []string{roleName},
-				Verbs:         []string{"delete"},
-				Resources:     []string{"role"},
-				APIGroups:     []string{""},
-			},
-			{
-				ResourceNames: []string{roleBindingName},
-				Verbs:         []string{"delete"},
-				Resources:     []string{"rolebinding"},
-				APIGroups:     []string{""},
-			},
-		}})
-	if err != nil {
-		return admission.ErrorResponse(http.StatusBadRequest, errors.Wrap(err, "Failed Creating RBAC Role "))
-	}
-
-	// TODO: Don't use the "default" service account here but require a service account from the operator which
-	// will be used for the eirini applications to be able to talk to the kube api.
-	_, err = rbacClient.RoleBindings(ext.Namespace).Create(&rbacapi.RoleBinding{
-		TypeMeta:   metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"},
-		ObjectMeta: metav1.ObjectMeta{Namespace: ext.Namespace, Name: roleBindingName},
-		Subjects:   []rbacapi.Subject{{Kind: "ServiceAccount", Name: "default", Namespace: ext.Namespace}},
-		RoleRef: rbacapi.RoleRef{
-			Kind:     "Role",
-			Name:     roleName,
-			APIGroup: "rbac.authorization.k8s.io",
-		}})
-	if err != nil {
-		return admission.ErrorResponse(http.StatusBadRequest, errors.Wrap(err, "Failed Creating RBAC RoleBinding"))
-	}
+	// TODO: Ask the operator to give us a serviceaccount name for a service account with
+	// the permission to read logs from any pod in the Eirini namespace instead of this.
 
 	podCopy := pod.DeepCopy()
-
-	// TODO: Remove these
-	//podCopy.Spec.ServiceAccountName = "default"
-	//autoMountServiceAccount := true
-	//podCopy.Spec.AutomountServiceAccountToken = &autoMountServiceAccount
 
 	// Mount the serviceaccount token in the container
 	kubeClient, err := kubernetes.NewForConfig(config)
@@ -115,7 +57,7 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 	}
 	serviceAccountHelper := NewServiceAccountMountHelper(kubeClient)
 	// TODO: Don't hardcode the "default" service account here, get it from env or something
-	serviceAccountVolume, err := serviceAccountHelper.VolumeForServiceAccount("default", podCopy.GetNamespace())
+	serviceAccountVolume, err := serviceAccountHelper.VolumeForServiceAccount("default", ext.Namespace)
 	if err != nil {
 		return admission.ErrorResponse(http.StatusBadRequest, errors.Wrap(err, "Failed to create the serviceaccount token volume"))
 	}
@@ -209,30 +151,6 @@ func (ext *Extension) Handle(ctx context.Context, eiriniManager eirinix.Manager,
 		// Volumes are mounted for kubeAPI access from the sidecar container
 		VolumeMounts: []v1.VolumeMount{secretsVolumeMount, serviceAccountVolumeMount},
 	}
-
-	// FIXME:Find a better way to do this
-	// If the hook fails for any reason the pod gets removed and we keep the role bindings behind
-	// We could use e.g. finalizers, preStart hooks that sets the ownership of the pod once it is created
-
-	// Another way to fix it is to create a postStart hook that sets up a parent relation dependency for garbage collection, see:
-	// https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/
-	// https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/
-	// https://kubernetes.io/docs/tasks/run-application/update-api-object-kubectl-patch/
-	// https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
-
-	// If this way proves to work, its better as we don't have to care if the preStop fails (and of the garbage left behind)
-
-	// FIXME: If we fail to create the pod, the roles stay behind and the next time it will complain that the role already exists
-	// FIXME: We don't have kubectl in the sidecar
-	sidecar.Lifecycle = &v1.Lifecycle{
-		PreStop: &v1.Handler{
-			Exec: &v1.ExecAction{
-				Command: []string{"/bin/sh",
-					"-c",
-					"kubectl delete role " + roleName + " -n " + ext.Namespace + " && " + "kubectl delete rolebinding " + roleBindingName + " -n " + ext.Namespace,
-				},
-			},
-		}}
 
 	podCopy.Spec.Containers = append(podCopy.Spec.Containers, sidecar)
 

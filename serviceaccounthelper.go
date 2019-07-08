@@ -55,6 +55,7 @@ func (samh *ServiceAccountMountHelper) getSecret(serviceAccount string, namespac
 	secrets, err := samh.kubeClient.CoreV1().Secrets(namespace).List(metav1.ListOptions{
 		FieldSelector: "type=" + string(v1.SecretTypeServiceAccountToken),
 	})
+
 	if err != nil {
 		return v1.Secret{}, nil
 	}
